@@ -1,57 +1,201 @@
 <template>
-  <div class="entry-title d-flex justify-content-between p-2">
-    <div>
-        <span class="text-success fs-3 fw-bold">15</span>
-        <span class="mx-1 fs-3">Julio</span>
-        <span class="mx-2 fs-4 fw-light">2023, Jueves</span>
-    </div>
+  <template v-if="entry">
+    <div class="entry-title d-flex justify-content-between p-2">
+      <div>
+        <span class="text-success fs-3 fw-bold">{{ day }}</span>
+        <span class="mx-1 fs-3">{{ month }}</span>
+        <span class="mx-2 fs-4 fw-light">{{ yearDay }}</span>
+      </div>
 
-    <div>
-        <button class="btn btn-danger mx-2">
-            Borrar
-            <i class="fa fa-trash-alt"></i>
+      <div>
+        <input type="file"
+            @change="onSelectedImage"
+            ref="imageSelector"
+            v-show="false"
+            accept="image/png, image/jpeg, image/jpg">
+
+        <button
+          class="btn btn-danger mx-2"
+          @click="onDeleteEntry"
+          v-if="entry.id"
+        >
+          Borrar
+          <i class="fa fa-trash-alt"></i>
         </button>
-        <button class="btn btn-primary mx-2">
-            Subir foto
-            <i class="fa fa-upload"></i>
+        <button class="btn btn-primary mx-2"
+          @click="onSelectImage">
+          Subir foto
+          <i class="fa fa-upload"></i>
         </button>
+      </div>
     </div>
-  </div>
-  <hr>
-  <div class="d-flex flex-column px-3 h-75">
-    <textarea placeholder="¿Qué sucedió hoy??"></textarea>
-  </div>
-  <fab icon="fa-save"></fab>
-  <img 
-    src="https://i0.wp.com/codigoespagueti.com/wp-content/uploads/2023/03/Kimetsu-no-Yaiba-Mitsuri-Kanroji-llega-a-la-aldea-de-los-herreros-con-este-cosplay.jpg?resize=1280%2C720&quality=80&ssl=1" 
-    alt="entry-picture"
-    class="img-thumbnail">
+    <hr />
+    <div class="d-flex flex-column px-3 h-75">
+      <textarea
+        placeholder="¿Qué sucedió hoy??"
+        v-model="entry.text"
+      ></textarea>
+    </div>
+    <Fab icon="fa-save" @on-click="saveEntry" />
+    <img
+      v-if="entry.picture && !localImage"
+      :src="entry.picture"
+      alt="entry-picture"
+      class="img-thumbnail"
+    />
+    <img
+      v-if="localImage"
+      :src="localImage"
+      alt="entry-picture"
+      class="img-thumbnail"
+    />
+  </template>
 </template>
 
 <script>
-import { defineAsyncComponent } from 'vue'
+import { defineAsyncComponent } from 'vue';
+import { mapGetters, mapActions } from 'vuex';
+import Swal from 'sweetalert2';
+
+import getDayMonthYear from '../helpers/getDayMonthYear';
+import uploadImage from '@/modules/daybook/helpers/uploadImage'
+
 export default {
-components:{
-    Fab: defineAsyncComponent(()=>import('../components/Fab.vue'))
-}
-}
+  props: {
+    id: {
+      type: String,
+      required: true,
+    },
+  },
+  components: {
+    Fab: defineAsyncComponent(() => import('../components/Fab.vue')),
+  },
+  data() {
+    return {
+      entry: null,
+      localImage: null,
+      file: null,
+    };
+  },
+  computed: {
+    ...mapGetters('journal', ['getEntryById']),
+    day() {
+      const { day } = getDayMonthYear(this.entry.date);
+      return day;
+    },
+    month() {
+      const { month } = getDayMonthYear(this.entry.date);
+      return month;
+    },
+    yearDay() {
+      const { yearDay } = getDayMonthYear(this.entry.date);
+      return yearDay;
+    },
+  },
+  methods: {
+    ...mapActions('journal', ['updateEntry', 'createEntry', 'deleteEntry']),
+    loadEntry() {
+      let entry;
+      if (this.id === 'new') {
+        entry = {
+          text: '',
+          date: new Date().getTime(),
+        };
+      } else {
+        entry = this.getEntryById(this.id);
+        if (!entry) return this.$router.push({ name: 'no-entry' });
+      }
+
+      this.entry = entry;
+    },
+    async saveEntry() {
+      new Swal({
+        title: 'Espere por favor...',
+        allowOutsideClick: false,
+      });
+      Swal.showLoading();
+
+      const picture = await uploadImage(this.file);
+      this.entry.picture = picture;
+
+      if (this.entry.id) {
+        this.updateEntry(this.entry);
+      } else {
+        const id = await this.createEntry(this.entry);
+        this.$router.push({ name: 'entry', params: { id } });
+      }
+
+      this.file = null;
+      Swal.fire('Guardado', 'Entrada registrada con éxto', 'success');      
+    },
+    async onDeleteEntry() {
+      const { isConfirmed } = await Swal.fire({
+        title: '¿Está seguro?',
+        text: 'Está acción no se puede deshacer',
+        showDenyButton: true,
+        confirmButtonText: 'Sí, estoy seguro',
+      });
+
+      if (!isConfirmed) {
+        return;
+      }
+
+      new Swal({
+        title: 'Espere por favor...',
+        allowOutsideClick: false,
+      });
+      Swal.showLoading();
+
+      await this.deleteEntry(this.entry.id);
+      this.$router.push({ name: 'no-entry' });
+
+      Swal.fire('Eliminado', '', 'success');
+    },
+    onSelectedImage(event){
+      const file = event.target.files[0];
+      if(!file) {
+        this.localImage = null;
+        this.file = null;
+        return;
+      }
+
+      this.file = file;
+      const fileReader = new FileReader();
+      fileReader.onload= () => this.localImage = fileReader.result;
+      fileReader.readAsDataURL(file);
+
+    },
+    onSelectImage(){
+      this.$refs.imageSelector.click();
+    }
+  },
+  created() {
+    this.loadEntry();
+  },
+  watch: {
+    id() {
+      this.loadEntry();
+    },
+  },
+};
 </script>
 
 <style lang="scss" scoped>
-textarea{
-    font-size:20px;
-    border: none;
-    height: 100%;
+textarea {
+  font-size: 20px;
+  border: none;
+  height: 100%;
 
-    &:focus{
-        outline: none;
-    }
+  &:focus {
+    outline: none;
+  }
 }
-img{
-    width: 200px;
-    position: fixed;
-    bottom: 150px;
-    right: 20px;
-    box-shadow: 0px 5px 10px rgba($color: #000000, $alpha: 0.2);
+img {
+  width: 200px;
+  position: fixed;
+  bottom: 150px;
+  right: 20px;
+  box-shadow: 0px 5px 10px rgba($color: #000000, $alpha: 0.2);
 }
-</style>>
+</style>
+>
