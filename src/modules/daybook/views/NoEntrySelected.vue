@@ -7,21 +7,23 @@
 </template>
 
 <script>
-import { defineAsyncComponent } from 'vue'
+import { defineAsyncComponent } from 'vue';
 export default {
-    components:{
-        Fab: defineAsyncComponent(()=> import('../components/Fab.vue'))
+  name: 'NoEntrySelected',
+  components: {
+    Fab: defineAsyncComponent(() => import('../components/Fab.vue')),
+  },
+  methods: {
+    createNewEntry() {
+      this.$router.push({ name: 'entry', params: { id: 'new' } });
     },
-    methods:{
-      createNewEntry(){        
-        this.$router.push({name:'entry', params: {id: 'new'}})
-      }
-    }
-}
+  },
+};
 </script>
 
 <style lang="scss" scoped>
-div{
-    height: 100%;
+div {
+  height: 100%;
 }
-</style>>
+</style>
+>
