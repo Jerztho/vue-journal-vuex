@@ -110,7 +110,7 @@ export default {
       this.entry = entry;
     },
     async saveEntry() {
-      new Swal({
+      Swal.fire({
         title: 'Espere por favor...',
         allowOutsideClick: false,
       });
@@ -141,7 +141,7 @@ export default {
         return;
       }
 
-      new Swal({
+      Swal.fire({
         title: 'Espere por favor...',
         allowOutsideClick: false,
       });
